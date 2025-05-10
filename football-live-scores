@@ -1,0 +1,187 @@
+import React, { useEffect, useState } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+
+const leagues = [
+  { id: "39", name: "Premier League" },
+  { id: "140", name: "La Liga" },
+  { id: "144", name: "Jupiler Pro League" },
+];
+
+const translations = {
+  nl: {
+    title: "Live Voetbalscores",
+    selectLeague: "Kies competitie",
+    score: "Score",
+    motm: "Man van de Match",
+    playerScores: "Spelersscores",
+    standings: "Competitiestand",
+    played: "Gespeeld",
+    win: "Winst",
+    draw: "Gelijk",
+    lose: "Verlies",
+    points: "Punten",
+    team: "Team",
+  },
+  en: {
+    title: "Live Football Scores",
+    selectLeague: "Select League",
+    score: "Score",
+    motm: "Man of the Match",
+    playerScores: "Player Scores",
+    standings: "Standings",
+    played: "Played",
+    win: "Wins",
+    draw: "Draws",
+    lose: "Losses",
+    points: "Points",
+    team: "Team",
+  }
+};
+
+function formatDate(date) {
+  return date.toISOString().split("T")[0];
+}
+
+export default function LiveScoresApp() {
+  const [selectedLeague, setSelectedLeague] = useState("39");
+  const [matches, setMatches] = useState([]);
+  const [selectedDate, setSelectedDate] = useState(formatDate(new Date()));
+  const [standings, setStandings] = useState([]);
+  const [language, setLanguage] = useState("nl");
+  const t = translations[language];
+
+  useEffect(() => {
+    const fetchMatches = async () => {
+      try {
+        const res = await fetch(
+          `https://api-football-v1.p.rapidapi.com/v3/fixtures?league=${selectedLeague}&season=2024&date=${selectedDate}`,
+          {
+            method: "GET",
+            headers: {
+              "X-RapidAPI-Key": "JOUW_API_KEY_HIER",
+              "X-RapidAPI-Host": "api-football-v1.p.rapidapi.com"
+            }
+          }
+        );
+        const data = await res.json();
+        const formatted = data.response.map((match) => ({
+          id: match.fixture.id,
+          homeTeam: match.teams.home.name,
+          awayTeam: match.teams.away.name,
+          score: `${match.goals.home} - ${match.goals.away}`,
+          motm: match.players?.[0]?.players?.[0]?.player?.name || "Onbekend",
+          players: [],
+        }));
+        setMatches(formatted);
+      } catch (err) {
+        console.error("Fout bij laden van data:", err);
+      }
+    };
+
+    const fetchStandings = async () => {
+      try {
+        const res = await fetch(
+          `https://api-football-v1.p.rapidapi.com/v3/standings?league=${selectedLeague}&season=2024`,
+          {
+            method: "GET",
+            headers: {
+              "X-RapidAPI-Key": "JOUW_API_KEY_HIER",
+              "X-RapidAPI-Host": "api-football-v1.p.rapidapi.com"
+            }
+          }
+        );
+        const data = await res.json();
+        const table = data.response[0].league.standings[0];
+        setStandings(table);
+      } catch (err) {
+        console.error("Fout bij laden van standen:", err);
+      }
+    };
+
+    fetchMatches();
+    fetchStandings();
+  }, [selectedLeague, selectedDate]);
+
+  return (
+    <div className="p-4 max-w-4xl mx-auto">
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-2xl font-bold">{t.title}</h1>
+        <select value={language} onChange={(e) => setLanguage(e.target.value)} className="border p-1 rounded-md">
+          <option value="nl">Nederlands</option>
+          <option value="en">English</option>
+        </select>
+      </div>
+
+      <div className="flex flex-wrap gap-4 items-center mb-4">
+        <Select onValueChange={setSelectedLeague} defaultValue="39">
+          <SelectTrigger className="w-[200px]">
+            <SelectValue placeholder={t.selectLeague} />
+          </SelectTrigger>
+          <SelectContent>
+            {leagues.map((league) => (
+              <SelectItem key={league.id} value={league.id}>{league.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <input
+          type="date"
+          value={selectedDate}
+          onChange={(e) => setSelectedDate(e.target.value)}
+          className="border p-2 rounded-md"
+        />
+      </div>
+
+      <div className="mt-6 grid gap-4">
+        {matches.map((match) => (
+          <Card key={match.id} className="bg-white shadow rounded-xl">
+            <CardContent className="p-4">
+              <h2 className="text-xl font-semibold">{match.homeTeam} vs {match.awayTeam}</h2>
+              <p className="text-lg">{t.score}: {match.score}</p>
+              <p className="mt-2 text-sm text-gray-600">{t.motm}: <span className="font-medium">{match.motm}</span></p>
+              <div className="mt-2">
+                <h3 className="font-semibold">{t.playerScores}:</h3>
+                <ul className="list-disc list-inside">
+                  {match.players.map((player, index) => (
+                    <li key={index}>{player.name} — {player.rating}</li>
+                  ))}
+                </ul>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <div className="mt-10">
+        <h2 className="text-xl font-bold mb-2">{t.standings}</h2>
+        <table className="w-full text-left border border-gray-300">
+          <thead className="bg-gray-100">
+            <tr>
+              <th className="p-2">#</th>
+              <th className="p-2">{t.team}</th>
+              <th className="p-2">{t.played}</th>
+              <th className="p-2">{t.win}</th>
+              <th className="p-2">{t.draw}</th>
+              <th className="p-2">{t.lose}</th>
+              <th className="p-2">{t.points}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {standings.map((team) => (
+              <tr key={team.team.id} className="border-t">
+                <td className="p-2">{team.rank}</td>
+                <td className="p-2">{team.team.name}</td>
+                <td className="p-2">{team.all.played}</td>
+                <td className="p-2">{team.all.win}</td>
+                <td className="p-2">{team.all.draw}</td>
+                <td className="p-2">{team.all.lose}</td>
+                <td className="p-2 font-bold">{team.points}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
